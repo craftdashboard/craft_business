@@ -1,202 +1,198 @@
-from flask import Flask, render_template, request, redirect, url_for, session
+from flask import Flask, render_template, request, redirect, url_for, session, flash
 import sqlite3
 import os
-from werkzeug.security import generate_password_hash, check_password_hash
 
 app = Flask(__name__)
 app.secret_key = 'supersecretkeyforcraftbusiness'
 
-# Database Setup
+DATABASE = 'database.db'
+
+def get_db_connection():
+    conn = sqlite3.connect(DATABASE)
+    conn.row_factory = sqlite3.Row
+    return conn
+
 def init_db():
-    conn = sqlite3.connect('database.db')
+    conn = sqlite3.connect(DATABASE)
     cursor = conn.cursor()
-    
-    # Orders Table
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS orders (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            customer_name TEXT,
-            item_name TEXT,
-            total_amount REAL,
-            advance_paid REAL,
-            expense_cost REAL,
-            status TEXT DEFAULT 'Confirmed'
-        )
-    ''')
     
     # Users Table
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS users (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            username TEXT UNIQUE,
-            email TEXT UNIQUE,
-            password TEXT
+            username TEXT UNIQUE NOT NULL,
+            email TEXT UNIQUE NOT NULL,
+            password TEXT NOT NULL
         )
     ''')
     
-    # Default Demo Login
-    try:
-        hashed_pw = generate_password_hash('admin123')
-        cursor.execute("INSERT INTO users (username, email, password) VALUES (?, ?, ?)", ('admin', 'admin@gmail.com', hashed_pw))
-        conn.commit()
-    except sqlite3.IntegrityError:
-        pass
-        
+    # Products Table
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS products (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            price REAL NOT NULL,
+            stock INTEGER NOT NULL DEFAULT 0,
+            description TEXT,
+            image_url TEXT
+        )
+    ''')
+    
+    # Orders Table
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS orders (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            product_id INTEGER NOT NULL,
+            customer_name TEXT NOT NULL,
+            quantity INTEGER NOT NULL,
+            total_price REAL NOT NULL,
+            status TEXT DEFAULT 'Pending',
+            order_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (product_id) REFERENCES products (id)
+        )
+    ''')
+    
+    conn.commit()
     conn.close()
 
-# 1. Login Route
-@app.route('/login', methods=['GET', 'POST'])
-def login():
-    if request.method == 'POST':
-        login_input = request.form['login_input']
-        password = request.form['password']
-        
-        conn = sqlite3.connect('database.db')
-        cursor = conn.cursor()
-        cursor.execute("SELECT * FROM users WHERE username=? OR email=?", (login_input, login_input))
-        user = cursor.fetchone()
-        conn.close()
-        
-        if user and check_password_hash(user[3], password):
-            session['logged_in'] = True
-            session['username'] = user[1]
-            return redirect(url_for('index'))
-        else:
-            return render_template('login.html', error="Invalid Username/Email or Password!")
-            
-    return render_template('login.html')
+with app.app_context():
+    init_db()
 
-# 2. Sign Up Route
+# --- ROUTES ---
+
+@app.route('/')
+def home():
+    if 'user_id' in session:
+        return redirect(url_for('dashboard'))
+    return redirect(url_for('login'))
+
 @app.route('/signup', methods=['GET', 'POST'])
 def signup():
     if request.method == 'POST':
-        username = request.form['username']
-        email = request.form['email']
-        password = request.form['password']
-        hashed_pw = generate_password_hash(password)
+        username = request.form.get('username')
+        email = request.form.get('email')
+        password = request.form.get('password')
         
-        conn = sqlite3.connect('database.db')
-        cursor = conn.cursor()
+        if not username or not email or not password:
+            flash('All fields are required!', 'danger')
+            return render_template('signup.html')
+            
         try:
-            cursor.execute("INSERT INTO users (username, email, password) VALUES (?, ?, ?)", (username, email, hashed_pw))
+            conn = sqlite3.connect(DATABASE)
+            cursor = conn.cursor()
+            cursor.execute('INSERT INTO users (username, email, password) VALUES (?, ?, ?)', (username, email, password))
             conn.commit()
             conn.close()
+            flash('Registration Successful! Please Login.', 'success')
             return redirect(url_for('login'))
         except sqlite3.IntegrityError:
-            conn.close()
-            return render_template('signup.html', error="Username or Email already exists!")
+            flash('Username or Email already exists!', 'danger')
             
     return render_template('signup.html')
 
-# 3. Forgot Password Route
-@app.route('/forgot', methods=['GET', 'POST'])
-def forgot():
+@app.route('/login', methods=['GET', 'POST'])
+def login():
     if request.method == 'POST':
-        email = request.form['email']
-        new_password = request.form['password']
-        hashed_pw = generate_password_hash(new_password)
+        login_input = request.form.get('username')
+        password = request.form.get('password')
         
-        conn = sqlite3.connect('database.db')
+        conn = sqlite3.connect(DATABASE)
         cursor = conn.cursor()
-        cursor.execute("SELECT * FROM users WHERE email=?", (email,))
+        cursor.execute('SELECT * FROM users WHERE (username=? OR email=?) AND password=?', (login_input, login_input, password))
         user = cursor.fetchone()
+        conn.close()
         
         if user:
-            cursor.execute("UPDATE users SET password=? WHERE email=?", (hashed_pw, email))
-            conn.commit()
-            conn.close()
-            return render_template('forgot.html', success="Password reset successfully! Go to Login.")
+            session['user_id'] = user[0]
+            session['username'] = user[1]
+            return redirect(url_for('dashboard'))
         else:
-            conn.close()
-            return render_template('forgot.html', error="Email not found!")
+            flash('Invalid credentials! Please try again.', 'danger')
             
-    return render_template('forgot.html')
+    return render_template('login.html')
 
-# Logout
+@app.route('/dashboard')
+def dashboard():
+    if 'user_id' not in session:
+        flash('Please login to access the dashboard.', 'warning')
+        return redirect(url_for('login'))
+        
+    conn = get_db_connection()
+    products_count = conn.execute('SELECT COUNT(*) FROM products').fetchone()[0]
+    orders_count = conn.execute('SELECT COUNT(*) FROM orders').fetchone()[0]
+    total_sales = conn.execute('SELECT SUM(total_price) FROM orders WHERE status = "Completed"').fetchone()[0] or 0
+    recent_orders = conn.execute('SELECT o.*, p.name as product_name FROM orders o JOIN products p ON o.product_id = p.id ORDER BY o.order_date DESC LIMIT 5').fetchall()
+    conn.close()
+    
+    return render_template('dashboard.html', 
+                           username=session['username'], 
+                           products_count=products_count, 
+                           orders_count=orders_count, 
+                           total_sales=total_sales,
+                           recent_orders=recent_orders)
+
+@app.route('/products', methods=['GET', 'POST'])
+def products():
+    if 'user_id' not in session:
+        return redirect(url_for('login'))
+        
+    conn = get_db_connection()
+    if request.method == 'POST':
+        name = request.form.get('name')
+        price = request.form.get('price')
+        stock = request.form.get('stock')
+        description = request.form.get('description')
+        
+        conn.execute('INSERT INTO products (name, price, stock, description) VALUES (?, ?, ?, ?)',
+                     (name, price, stock, description))
+        conn.commit()
+        flash('Product added successfully!', 'success')
+        
+    products = conn.execute('SELECT * FROM products').fetchall()
+    conn.close()
+    return render_template('products.html', products=products)
+
+@app.route('/orders', methods=['GET', 'POST'])
+def orders():
+    if 'user_id' not in session:
+        return redirect(url_for('login'))
+        
+    conn = get_db_connection()
+    if request.method == 'POST':
+        product_id = request.form.get('product_id')
+        customer_name = request.form.get('customer_name')
+        quantity = int(request.form.get('quantity'))
+        
+        product = conn.execute('SELECT price FROM products WHERE id = ?', (product_id,)).fetchone()
+        if product:
+            total_price = product['price'] * quantity
+            conn.execute('INSERT INTO orders (product_id, customer_name, quantity, total_price) VALUES (?, ?, ?, ?)',
+                         (product_id, customer_name, quantity, total_price))
+            conn.commit()
+            flash('Order placed successfully!', 'success')
+            
+    orders = conn.execute('SELECT o.*, p.name as product_name FROM orders o JOIN products p ON o.product_id = p.id').fetchall()
+    products = conn.execute('SELECT id, name FROM products').fetchall()
+    conn.close()
+    return render_template('orders.html', orders=orders, products=products)
+
+@app.route('/orders/update/<int:id>', methods=['POST'])
+def update_order_status(id):
+    if 'user_id' not in session:
+        return redirect(url_for('login'))
+    status = request.form.get('status')
+    conn = get_db_connection()
+    conn.execute('UPDATE orders SET status = ? WHERE id = ?', (status, id))
+    conn.commit()
+    conn.close()
+    flash('Order status updated!', 'success')
+    return redirect(url_for('orders'))
+
 @app.route('/logout')
 def logout():
     session.clear()
+    flash('You have been logged out.', 'info')
     return redirect(url_for('login'))
 
-# Main Dashboard Page
-@app.route('/')
-def index():
-    if not session.get('logged_in'):
-        return redirect(url_for('login'))
-        
-    conn = sqlite3.connect('database.db')
-    cursor = conn.cursor()
-    cursor.execute("SELECT * FROM orders WHERE status='Confirmed'")
-    active_orders = cursor.fetchall()
-    cursor.execute("SELECT * FROM orders WHERE status='Completed'")
-    completed_orders = cursor.fetchall()
-    
-    cursor.execute("SELECT SUM(total_amount), SUM(expense_cost) FROM orders WHERE status='Completed'")
-    stats = cursor.fetchone()
-    total_revenue = stats[0] if stats[0] else 0
-    total_expense = stats[1] if stats[1] else 0
-    total_profit = total_revenue - total_expense
-    conn.close()
-    
-    return render_template('index.html', active=active_orders, completed=completed_orders, profit=total_profit, expense=total_expense)
-
-# Add Order
-@app.route('/add', methods=['GET', 'POST'])
-def add_order():
-    if not session.get('logged_in'): return redirect(url_for('login'))
-    if request.method == 'POST':
-        name, item = request.form['name'], request.form['item']
-        total, advance, expense = float(request.form['total']), float(request.form['advance']), float(request.form['expense'])
-        conn = sqlite3.connect('database.db')
-        cursor = conn.cursor()
-        cursor.execute("INSERT INTO orders (customer_name, item_name, total_amount, advance_paid, expense_cost) VALUES (?, ?, ?, ?, ?)", (name, item, total, advance, expense))
-        conn.commit(); conn.close()
-        return redirect(url_for('index'))
-    return render_template('add_order.html')
-
-# 4. Edit Order Route (New Feature)
-@app.route('/edit/<int:id>', methods=['GET', 'POST'])
-def edit_order(id):
-    if not session.get('logged_in'): return redirect(url_for('login'))
-    conn = sqlite3.connect('database.db')
-    cursor = conn.cursor()
-    
-    if request.method == 'POST':
-        name, item = request.form['name'], request.form['item']
-        total, advance, expense = float(request.form['total']), float(request.form['advance']), float(request.form['expense'])
-        cursor.execute('''
-            UPDATE orders 
-            SET customer_name=?, item_name=?, total_amount=?, advance_paid=?, expense_cost=? 
-            WHERE id=?
-        ''', (name, item, total, advance, expense, id))
-        conn.commit(); conn.close()
-        return redirect(url_for('index'))
-        
-    cursor.execute("SELECT * FROM orders WHERE id=?", (id,))
-    order = cursor.fetchone(); conn.close()
-    return render_template('edit_order.html', order=order)
-
-# Complete Order
-@app.route('/complete/<int:id>')
-def complete_order(id):
-    if not session.get('logged_in'): return redirect(url_for('login'))
-    conn = sqlite3.connect('database.db')
-    cursor = conn.cursor()
-    cursor.execute("UPDATE orders SET status='Completed', advance_paid=total_amount WHERE id=?", (id,))
-    conn.commit(); conn.close()
-    return redirect(url_for('index'))
-
-# Invoice Route
-@app.route('/invoice/<int:id>')
-def invoice(id):
-    if not session.get('logged_in'): return redirect(url_for('login'))
-    conn = sqlite3.connect('database.db')
-    cursor = conn.cursor()
-    cursor.execute("SELECT * FROM orders WHERE id=?", (id,))
-    order = cursor.fetchone(); conn.close()
-    return render_template('invoice.html', order=order)
-
 if __name__ == '__main__':
-    init_db()
-    port = int(os.environ.get("PORT", 5000))
-    app.run(host='0.0.0.0', port=port, debug=True)
+    app.run(debug=True)

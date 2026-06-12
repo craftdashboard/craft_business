@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
+    <title>Invoice - {{ order[1] }}</title>
+    <style>
+        @media print { .no-print { display: none; } }
+    </style>
+</head>
+<body class="p-5" onload="window.print()">
+    <div class="container border p-4 bg-white" style="max-width: 600px; border-radius: 10px;">
+        <div class="d-flex justify-content-between align-items-center">
+            <div>
+                <h3>CRAFTY HANDMADES</h3>
+                <p class="text-muted">Order ID: #00{{ order[0] }}</p>
+            </div>
+            <div class="text-end">
+                <h5>Status: 
+                    {% if order[6] == 'Completed' %}
+                        <span class="badge bg-success">FULLY PAID</span>
+                    {% else %}
+                        <span class="badge bg-danger">BALANCE DUE</span>
+                    {% endif %}
+                </h5>
+            </div>
+        </div>
+        <hr>
+        <p><strong>Customer Name:</strong> {{ order[1] }}</p>
+        <p><strong>Item Name:</strong> {{ order[2] }}</p>
+        
+        <table class="table table-bordered mt-4">
+            <thead class="table-light">
+                <tr><th>Description</th><th>Amount</th></tr>
+            </thead>
+            <tbody>
+                <tr><td>Total Value of Gift Hamper</td><td>₹{{ order[3] }}</td></tr>
+                <tr><td>Advance Paid</td><td>₹{{ order[4] }}</td></tr>
+                <tr class="table-secondary fw-bold">
+                    <td>Balance Amount to Pay</td>
+                    <td class="text-danger">₹{{ order[3] - order[4] }}</td>
+                </tr>
+            </tbody>
+        </table>
+        
+        <div class="text-center mt-5">
+            <p>Thank you for supporting our craft business! 🎉</p>
+            <button class="btn btn-sm btn-primary no-print" onclick="window.print()">Print Bill</button>
+            <a href="/" class="btn btn-sm btn-link no-print d-block mt-2">Go Back</a>
+        </div>
+    </div>
+</body>
+</html>

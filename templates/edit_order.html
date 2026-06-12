@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
+    <title>Edit Order - Space Craft</title>
+</head>
+<body class="bg-light p-4">
+    <div class="container" style="max-width: 500px;">
+        <div class="card shadow-sm p-4 mt-4">
+            <h3 class="mb-4 text-center text-warning fw-bold">Edit Order Details</h3>
+            <form method="POST">
+                <div class="mb-3">
+                    <label class="form-label fw-bold">Customer Name</label>
+                    <input type="text" name="name" class="form-control" value="{{ order[1] }}" required autocomplete="off">
+                </div>
+                <div class="mb-3">
+                    <label class="form-label fw-bold">Item / Gift Hamper Name</label>
+                    <input type="text" name="item" class="form-control" value="{{ order[2] }}" required autocomplete="off">
+                </div>
+                <div class="mb-3">
+                    <label class="form-label fw-bold">Total Amount (₹)</label>
+                    <input type="number" step="0.01" name="total" class="form-control" value="{{ order[3] }}" required>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label fw-bold">Advance Paid (₹)</label>
+                    <input type="number" step="0.01" name="advance" class="form-control" value="{{ order[4] }}" required>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label fw-bold">Expense Cost / Materials (₹)</label>
+                    <input type="number" step="0.01" name="expense" class="form-control" value="{{ order[5] }}" required>
+                </div>
+                <button type="submit" class="btn btn-warning text-white w-100 mb-2 fw-bold">Update & Save Changes</button>
+                <a href="/" class="btn btn-secondary w-100">Cancel</a>
+            </form>
+        </div>
+    </div>
+</body>
+</html>

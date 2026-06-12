@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
+    <title>Space Craft - Dashboard</title>
+</head>
+<body class="bg-light p-4">
+    <div class="container">
+        <!-- Header Section -->
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h2>Space Craft Business Dashboard</h2>
+            <div>
+                <a href="/add" class="btn btn-primary me-2">+ Add New Order</a>
+                <a href="/logout" class="btn btn-danger">Logout</a>
+            </div>
+        </div>
+
+        <!-- Profit & Analytics Cards -->
+        <div class="row mb-4">
+            <div class="col-md-6">
+                <div class="card bg-success text-white shadow-sm p-3">
+                    <h5>Total Profit</h5>
+                    <h3>₹{{ "%.2f"|format(profit) }}</h3>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="card bg-secondary text-white shadow-sm p-3">
+                    <h5>Total Materials Expense</h5>
+                    <h3>₹{{ "%.2f"|format(expense) }}</h3>
+                </div>
+            </div>
+        </div>
+
+        <!-- Active/Pending Orders Section -->
+        <h4 class="mb-3 text-warning">Pending Orders</h4>
+        <table class="table table-striped table-bordered bg-white shadow-sm mb-5">
+            <thead class="table-dark">
+                <tr>
+                    <th>Customer</th>
+                    <th>Item / Hamper</th>
+                    <th>Total (₹)</th>
+                    <th>Advance Paid (₹)</th>
+                    <th>Expense Cost (₹)</th>
+                    <th>Balance Due (₹)</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for row in active %}
+                <tr>
+                    <td>{{ row[1] }}</td>
+                    <td>{{ row[2] }}</td>
+                    <td>{{ row[3] }}</td>
+                    <td>{{ row[4] }}</td>
+                    <td>{{ row[5] }}</td>
+                    <td class="text-danger fw-bold">₹{{ row[3] - row[4] }}</td>
+                    <td>
+                        <!-- Edit Button (New) -->
+                        <a href="/edit/{{ row[0] }}" class="btn btn-sm btn-warning text-white me-1">Edit</a>
+                        <a href="/complete/{{ row[0] }}" class="btn btn-sm btn-success me-1">Mark Completed</a>
+                        <a href="/invoice/{{ row[0] }}" class="btn btn-sm btn-outline-dark">Invoice</a>
+                    </td>
+                </tr>
+                {% endfor %}
+                {% if not active %}
+                <tr><td colspan="7" class="text-center text-muted">No pending orders.</td></tr>
+                {% endif %}
+            </tbody>
+        </table>
+
+        <!-- Completed Orders Section -->
+        <h4 class="mb-3 text-success">Completed Orders</h4>
+        <table class="table table-striped table-bordered bg-white shadow-sm">
+            <thead class="table-dark">
+                <tr>
+                    <th>Customer</th>
+                    <th>Item Name</th>
+                    <th>Total Amount</th>
+                    <th>Expense Cost</th>
+                    <th>Status</th>
+                    <th>Action</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for row in completed %}
+                <tr>
+                    <td>{{ row[1] }}</td>
+                    <td>{{ row[2] }}</td>
+                    <td>₹{{ row[3] }}</td>
+                    <td>₹{{ row[5] }}</td>
+                    <td><span class="badge bg-success">Completed</span></td>
+                    <td><a href="/invoice/{{ row[0] }}" class="btn btn-sm btn-outline-dark">Invoice</a></td>
+                </tr>
+                {% endfor %}
+                {% if not completed %}
+                <tr><td colspan="6" class="text-center text-muted">No completed orders yet.</td></tr>
+                {% endif %}
+            </tbody>
+        </table>
+    </div>
+</body>
+</html>

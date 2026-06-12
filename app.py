@@ -5,7 +5,9 @@ import os
 app = Flask(__name__)
 app.secret_key = 'supersecretkeyforcraftbusiness'
 
-DATABASE = 'database.db'
+# Render-ൽ ഡാറ്റാബേസ് കൃത്യമായി ക്രിയേറ്റ് ആകാൻ പാത്ത് സെറ്റ് ചെയ്യുന്നു
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+DATABASE = os.path.join(BASE_DIR, 'database.db')
 
 def get_db_connection():
     conn = sqlite3.connect(DATABASE)
@@ -55,8 +57,8 @@ def init_db():
     conn.commit()
     conn.close()
 
-with app.app_context():
-    init_db()
+# ആപ്പ് റൺ ചെയ്യുന്നതിന് തൊട്ടുമുമ്പ് ടേബിളുകൾ ഉണ്ടെന്ന് ഉറപ്പാക്കുന്നു
+init_db()
 
 # --- ROUTES ---
 
